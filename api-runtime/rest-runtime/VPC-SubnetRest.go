@@ -57,7 +57,7 @@ func RegisterVPC(c echo.Context) error {
 	}
 
 	// create UserIID
-	userIId := cres.IID{req.ReqInfo.Name, req.ReqInfo.CSPId}
+	userIId := cres.IID{NameId: req.ReqInfo.Name, SystemId: req.ReqInfo.CSPId}
 
 	// Call common-runtime API
 	result, err := cmrt.RegisterVPC(req.ConnectionName, userIId)
@@ -139,13 +139,14 @@ func UnregisterSubnet(c echo.Context) error {
 	cblog.Info("call UnregisterSubnet()")
 
 	req := SubnetUnregisterRequest{}
+	var subnetName = c.Param("Name")
 
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
 	// Call common-runtime API
-	result, err := cmrt.UnregisterSubnet(req.ConnectionName, req.ReqInfo.VPCName, c.Param("Name"))
+	result, err := cmrt.UnregisterSubnet(req.ConnectionName, req.ReqInfo.VPCName, subnetName)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -175,13 +176,14 @@ func UnregisterVPC(c echo.Context) error {
 	cblog.Info("call UnregisterVPC()")
 
 	var req ConnectionRequest
+	var vpcName = c.Param("Name")
 
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
 	// Call common-runtime API
-	result, err := cmrt.UnregisterResource(req.ConnectionName, VPC, c.Param("Name"))
+	result, err := cmrt.UnregisterResource(req.ConnectionName, VPC, vpcName)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -236,12 +238,12 @@ func CreateVPC(c echo.Context) error {
 	// (1) create SubnetInfo List
 	subnetInfoList := []cres.SubnetInfo{}
 	for _, info := range req.ReqInfo.SubnetInfoList {
-		subnetInfo := cres.SubnetInfo{IId: cres.IID{info.Name, ""}, IPv4_CIDR: info.IPv4_CIDR, Zone: info.Zone, TagList: info.TagList}
+		subnetInfo := cres.SubnetInfo{IId: cres.IID{NameId: info.Name, SystemId: ""}, IPv4_CIDR: info.IPv4_CIDR, Zone: info.Zone, TagList: info.TagList}
 		subnetInfoList = append(subnetInfoList, subnetInfo)
 	}
 	// (2) create VPCReqInfo with SubnetInfo List
 	reqInfo := cres.VPCReqInfo{
-		IId:            cres.IID{req.ReqInfo.Name, ""},
+		IId:            cres.IID{NameId: req.ReqInfo.Name, SystemId: ""},
 		IPv4_CIDR:      req.ReqInfo.IPv4_CIDR,
 		SubnetInfoList: subnetInfoList,
 		TagList:        req.ReqInfo.TagList,
@@ -381,16 +383,17 @@ func AddSubnet(c echo.Context) error {
 	cblog.Info("call AddSubnet()")
 
 	var req SubnetAddRequest
+	var vpcName = c.Param("VPCName")
 
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
 	// Rest RegInfo => Driver ReqInfo
-	reqSubnetInfo := cres.SubnetInfo{IId: cres.IID{req.ReqInfo.Name, ""}, IPv4_CIDR: req.ReqInfo.IPv4_CIDR, Zone: req.ReqInfo.Zone, TagList: req.ReqInfo.TagList}
+	reqSubnetInfo := cres.SubnetInfo{IId: cres.IID{NameId: req.ReqInfo.Name, SystemId: ""}, IPv4_CIDR: req.ReqInfo.IPv4_CIDR, Zone: req.ReqInfo.Zone, TagList: req.ReqInfo.TagList}
 
 	// Call common-runtime API
-	result, err := cmrt.AddSubnet(req.ConnectionName, SUBNET, c.Param("VPCName"), reqSubnetInfo, req.IDTransformMode)
+	result, err := cmrt.AddSubnet(req.ConnectionName, SUBNET, vpcName, reqSubnetInfo, req.IDTransformMode)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -417,6 +420,8 @@ func GetSubnet(c echo.Context) error {
 	cblog.Info("call GetSubnet()")
 
 	var req ConnectionRequest
+	var vpcName = c.Param("VPCName")
+	var subnetName = c.Param("SubnetName")
 
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
@@ -426,10 +431,6 @@ func GetSubnet(c echo.Context) error {
 	if req.ConnectionName == "" {
 		req.ConnectionName = c.QueryParam("ConnectionName")
 	}
-
-	vpcName := c.Param("VPCName")
-	subnetName := c.Param("Name")
-
 	// Validate that connectionName, vpcName, and subnetName are not empty
 	if req.ConnectionName == "" || vpcName == "" || subnetName == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "Missing required parameters")
@@ -468,13 +469,15 @@ func RemoveSubnet(c echo.Context) error {
 	cblog.Info("call RemoveSubnet()")
 
 	var req ConnectionRequest
+	var vpcName = c.Param("VPCName")
+	var subnetName = c.Param("SubnetName")
 
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
 	// Call common-runtime API
-	result, err := cmrt.RemoveSubnet(req.ConnectionName, c.Param("VPCName"), c.Param("SubnetName"), c.QueryParam("force"))
+	result, err := cmrt.RemoveSubnet(req.ConnectionName, vpcName, subnetName, c.QueryParam("force"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -505,13 +508,15 @@ func RemoveCSPSubnet(c echo.Context) error {
 	cblog.Info("call RemoveCSPSubnet()")
 
 	var req ConnectionRequest
+	var vpcName = c.Param("VPCName")
+	var id = c.Param("Id")
 
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
 	// Call common-runtime API
-	result, err := cmrt.RemoveCSPSubnet(req.ConnectionName, c.Param("VPCName"), c.Param("Id"))
+	result, err := cmrt.RemoveCSPSubnet(req.ConnectionName, vpcName, id)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -541,6 +546,7 @@ func GetVPC(c echo.Context) error {
 	cblog.Info("call GetVPC()")
 
 	var req ConnectionRequest
+	vpcName := c.Param("Name")
 
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
@@ -552,7 +558,7 @@ func GetVPC(c echo.Context) error {
 	}
 
 	// Call common-runtime API
-	result, err := cmrt.GetVPC(req.ConnectionName, VPC, c.Param("Name"))
+	result, err := cmrt.GetVPC(req.ConnectionName, VPC, vpcName)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -579,13 +585,14 @@ func DeleteVPC(c echo.Context) error {
 	cblog.Info("call DeleteVPC()")
 
 	var req ConnectionRequest
+	var vpcName = c.Param("Name")
 
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
 	// Call common-runtime API
-	result, err := cmrt.DeleteVPC(req.ConnectionName, VPC, c.Param("Name"), c.QueryParam("force"))
+	result, err := cmrt.DeleteVPC(req.ConnectionName, VPC, vpcName, c.QueryParam("force"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -615,13 +622,14 @@ func DeleteCSPVPC(c echo.Context) error {
 	cblog.Info("call DeleteCSPVPC()")
 
 	var req ConnectionRequest
+	var id = c.Param("Id")
 
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
 	// Call common-runtime API
-	result, _, err := cmrt.DeleteCSPResource(req.ConnectionName, VPC, c.Param("Id"))
+	result, _, err := cmrt.DeleteCSPResource(req.ConnectionName, VPC, id)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -712,8 +720,10 @@ func CountAllVPCs(c echo.Context) error {
 func CountVPCsByConnection(c echo.Context) error {
 	cblog.Info("call CountVPCsByConnection()")
 
+	var connectionName = c.Param("ConnectionName")
+
 	// Call common-runtime API to get count of VPCs
-	count, err := cmrt.CountVPCsByConnection(c.Param("ConnectionName"))
+	count, err := cmrt.CountVPCsByConnection(connectionName)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -764,7 +774,9 @@ func CountAllSubnets(c echo.Context) error {
 // @Router /countsubnet/{ConnectionName} [get]
 func CountSubnetsByConnection(c echo.Context) error {
 	// Call common-runtime API to get count of Subnets
-	count, err := cmrt.CountSubnetsByConnection(c.Param("ConnectionName"))
+	var connectionName = c.Param("ConnectionName")
+
+	count, err := cmrt.CountSubnetsByConnection(connectionName)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
